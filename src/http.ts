@@ -42,7 +42,7 @@ async function readBody(req: IncomingMessage): Promise<unknown> {
 
 async function main() {
   console.log("[startup] Iniciando country-agent…");
-  console.log(`[startup] Modelo: ${env.GEMINI_MODEL} · máximo de iteraciones: ${MAX_ITERATIONS}`);
+  console.log(`[startup] Modelo: ${env.GEMINI_MODEL} (respaldo: ${env.GEMINI_FALLBACK_MODEL}) · máximo de iteraciones: ${MAX_ITERATIONS}`);
 
   // ── 2. Cliente MCP: lanza el servidor y descubre sus herramientas ────────
   const mcp = new CountryMcpClient();
@@ -50,7 +50,7 @@ async function main() {
   console.log(`[startup] Conectado a country-agent-server por stdio`);
   console.log(`[startup] Herramientas descubiertas (tools/list): ${mcp.tools.map((tool) => tool.name).join(", ")}`);
 
-  const agent = new CountryAgent(mcp, env.GEMINI_API_KEY, env.GEMINI_MODEL);
+  const agent = new CountryAgent(mcp, env.GEMINI_API_KEY, env.GEMINI_MODEL, env.GEMINI_FALLBACK_MODEL);
 
   // ── 3. Servidor HTTP ─────────────────────────────────────────────────────
   const server = createServer(async (req, res) => {

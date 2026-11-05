@@ -113,7 +113,9 @@
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ message: text, sessionId })
         });
-        const d = await r.json();
+        const raw = await r.text();
+        let d;
+        try { d = JSON.parse(raw); } catch { throw new Error("El servidor tardó demasiado o se está reiniciando. Probá de nuevo en unos segundos."); }
         if (!r.ok) throw new Error(d.error || "Error");
         sessionId = d.sessionId;
         add("agent", d.answer, d.steps);

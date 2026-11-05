@@ -10,7 +10,7 @@ Agente de IA que responde preguntas sobre países en lenguaje natural. **Gemini*
 
 > **Notas de versiones.**
 > - REST Countries deprecó la v3.1 que usaba el curso (ahora responde un aviso en lugar de datos). El servicio usa la **v5**, que requiere una API key gratuita (`RESTCOUNTRIES_API_KEY`).
-> - Google dio de baja `gemini-1.5-flash` en septiembre de 2025. El modelo se configura con `GEMINI_MODEL`, y su valor por defecto, `gemini-flash-latest`, es el alias que apunta siempre al Flash vigente. Se sigue usando el SDK `@google/generative-ai` que pide la consigna.
+> - Google dio de baja `gemini-1.5-flash` en septiembre de 2025. El modelo se configura con `GEMINI_MODEL` (por defecto `gemini-3.6-flash`). Si está saturado o no disponible, el agente usa `GEMINI_FALLBACK_MODEL` (por defecto `gemini-flash-latest`, el alias del Flash vigente). Se sigue usando el SDK `@google/generative-ai` que pide la consigna.
 
 ## Herramientas expuestas por el servidor MCP
 

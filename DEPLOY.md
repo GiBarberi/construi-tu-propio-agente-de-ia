@@ -30,6 +30,8 @@ services:
       - key: NODE_VERSION
         value: "22"
       - key: GEMINI_MODEL
+        value: gemini-3.6-flash
+      - key: GEMINI_FALLBACK_MODEL
         value: gemini-flash-latest
       - key: GEMINI_API_KEY
         sync: false

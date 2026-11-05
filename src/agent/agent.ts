@@ -35,14 +35,15 @@ export class CountryAgent {
   constructor(
     private mcp: CountryMcpClient,
     apiKey: string,
-    private modelName: string
+    private modelName: string,
+    private fallbackModelName?: string
   ) {
     this.genAI = new GoogleGenerativeAI(apiKey);
   }
 
-  private buildModel() {
+  private buildModel(modelName: string) {
     return this.genAI.getGenerativeModel({
-      model: this.modelName,
+      model: modelName,
       systemInstruction: SYSTEM_PROMPT,
       // Las herramientas salen de tools/list, no de una lista escrita a mano
       tools: [{ functionDeclarations: mcpToolsToGemini(this.mcp.tools) }],
@@ -87,33 +88,53 @@ export class CountryAgent {
     };
   }
 
-  /** Llama a Gemini reintentando ante saturación temporal (429/500/503). */
-  private async generate(model: GenerativeModel, contents: Content[]) {
-    const delays = [1000, 2500, 5000];
+  /** Llama a un modelo reintentando ante saturación temporal (429/500/503). */
+  private async generateWith(modelName: string, contents: Content[]) {
+    const model = this.buildModel(modelName);
+    const delays = [1000, 3000];
     for (let attempt = 0; ; attempt++) {
       try {
         return await model.generateContent({ contents });
       } catch (error) {
         const status = (error as { status?: number }).status;
         const retryable = status === 429 || status === 500 || status === 503;
-        if (!retryable || attempt >= delays.length) {
-          if (retryable) throw new Error("Gemini está con mucha demanda en este momento. Probá de nuevo en unos segundos.");
-          throw error;
-        }
-        console.log(`[agent] Gemini respondió ${status}: reintento ${attempt + 1} de ${delays.length}`);
+        if (!retryable || attempt >= delays.length) throw error;
+        console.log(`[agent] ${modelName} respondió ${status}: reintento ${attempt + 1} de ${delays.length}`);
         await new Promise((resolve) => setTimeout(resolve, delays[attempt]));
       }
     }
   }
 
+  /** Usa el modelo principal y, si está saturado o no disponible, el modelo de respaldo. */
+  private async generate(contents: Content[]) {
+    try {
+      return await this.generateWith(this.modelName, contents);
+    } catch (error) {
+      const status = (error as { status?: number }).status;
+      const switchable = status === 404 || status === 429 || status === 500 || status === 503;
+      if (switchable && this.fallbackModelName && this.fallbackModelName !== this.modelName) {
+        console.log(`[agent] ${this.modelName} no disponible (${status}): uso ${this.fallbackModelName}`);
+        try {
+          return await this.generateWith(this.fallbackModelName, contents);
+        } catch (fallbackError) {
+          error = fallbackError;
+        }
+      }
+      const finalStatus = (error as { status?: number }).status;
+      if (finalStatus === 429 || finalStatus === 500 || finalStatus === 503) {
+        throw new Error("Gemini está con mucha demanda en este momento. Probá de nuevo en unos segundos.");
+      }
+      throw error;
+    }
+  }
+
   async run(question: string, history: Content[] = []): Promise<AgentResult> {
-    const model = this.buildModel();
     // Estado: el historial completo (usuario, llamadas, observaciones y respuestas) se reenvía en cada iteración
     const contents: Content[] = [...history, { role: "user", parts: [{ text: question }] }];
     const steps: AgentStep[] = [];
 
     for (let iteration = 1; iteration <= MAX_ITERATIONS; iteration++) {
-      const { response } = await this.generate(model, contents);
+      const { response } = await this.generate(contents);
       const modelContent = response.candidates?.[0]?.content;
       if (!modelContent?.parts?.length) {
         return {

@@ -16,7 +16,7 @@ await mcp.connect();
 console.log(`Herramientas descubiertas: ${mcp.tools.map((tool) => tool.name).join(", ")}`);
 console.log('Escribí tu pregunta (o "salir").\n');
 
-const agent = new CountryAgent(mcp, envResult.env.GEMINI_API_KEY, envResult.env.GEMINI_MODEL);
+const agent = new CountryAgent(mcp, envResult.env.GEMINI_API_KEY, envResult.env.GEMINI_MODEL, envResult.env.GEMINI_FALLBACK_MODEL);
 const rl = createInterface({ input: process.stdin, output: process.stdout });
 let history: Content[] = [];
 

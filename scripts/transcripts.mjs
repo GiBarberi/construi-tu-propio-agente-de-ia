@@ -13,15 +13,29 @@ const conversations = [
   { title: "Conversación 2 — Consulta fuera de alcance", question: "¿Cómo hago una pizza?" },
 ];
 
-async function ask(message) {
-  const response = await fetch(`${baseUrl}/api/chat`, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ message }),
-  });
-  const body = await response.json();
-  if (!response.ok) throw new Error(`HTTP ${response.status}: ${JSON.stringify(body)}`);
-  return body;
+async function ask(message, attempts = 3) {
+  for (let attempt = 1; ; attempt++) {
+    try {
+      const response = await fetch(`${baseUrl}/api/chat`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ message }),
+      });
+      const raw = await response.text();
+      let body;
+      try {
+        body = JSON.parse(raw);
+      } catch {
+        throw new Error(`HTTP ${response.status}: el servicio no devolvió JSON (¿se está reiniciando?)`);
+      }
+      if (!response.ok) throw new Error(`HTTP ${response.status}: ${body.error ?? JSON.stringify(body)}`);
+      return body;
+    } catch (error) {
+      if (attempt >= attempts) throw error;
+      console.log(`  ${error.message} → reintento ${attempt} de ${attempts - 1} en 15 segundos…`);
+      await new Promise((resolve) => setTimeout(resolve, 15000));
+    }
+  }
 }
 
 // El plan gratuito de Render hiberna: el primer pedido despierta el servicio

@@ -18,8 +18,10 @@ const ServerEnvSchema = z.object({
 /** Lo que necesita el host (agente + servidor HTTP). */
 const HostEnvSchema = ServerEnvSchema.extend({
   GEMINI_API_KEY: required("GEMINI_API_KEY"),
-  // gemini-1.5-flash fue dado de baja por Google: el alias apunta siempre al Flash vigente
-  GEMINI_MODEL: z.string().trim().min(1).default("gemini-flash-latest"),
+  // gemini-1.5-flash fue dado de baja por Google (septiembre de 2025)
+  GEMINI_MODEL: z.string().trim().min(1).default("gemini-3.6-flash"),
+  // Respaldo si el modelo principal está saturado o no disponible
+  GEMINI_FALLBACK_MODEL: z.string().trim().min(1).default("gemini-flash-latest"),
   PORT: z.coerce.number().int().positive().default(3000),
 });
 

@@ -72,12 +72,22 @@
       document.getElementById("tools").textContent = "Herramientas descubiertas: " + d.tools.join(", ");
     }).catch(() => { document.getElementById("tools").textContent = "No se pudo conectar con el agente."; });
 
+    // Formato mínimo para la respuesta de Gemini: escapa HTML y convierte **negrita** y viñetas
+    function format(text) {
+      return text
+        .replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;")
+        .replace(/\*\*(.+?)\*\*/g, "<strong>$1</strong>")
+        .replace(/^[-*] /gm, "• ");
+    }
+
     function add(who, text, steps) {
       const div = document.createElement("div");
       div.className = "msg " + who;
       div.innerHTML = '<div class="who"></div><div class="bubble"></div>';
       div.querySelector(".who").textContent = who === "user" ? "Vos" : "Agente";
-      div.querySelector(".bubble").textContent = text;
+      const bubble = div.querySelector(".bubble");
+      if (who === "agent") bubble.innerHTML = format(text);
+      else bubble.textContent = text;
       if (steps) {
         const s = document.createElement("div");
         s.className = "steps";

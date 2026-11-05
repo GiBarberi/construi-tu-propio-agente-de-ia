@@ -50,10 +50,25 @@ services:
 
 ## 4. Logs de arranque en Render
 
+Copiados del panel de Render (**country-agent → Logs**). Las líneas muestran el arranque en orden:
+
+1. Se validan las variables de entorno.
+2. El host lanza el servidor MCP como subproceso (`servidor iniciado por stdio`).
+3. Descubre las herramientas con `tools/list`.
+4. Empieza a escuchar en el puerto que asigna Render (`10000`).
+
+Las líneas `[country-agent-server]` llegan por el `stderr` del servidor MCP, que deja `stdout` libre para JSON-RPC.
+
 <!-- logs:inicio -->
 
 ```text
-PENDIENTE: pegar los logs de arranque copiados del panel de Render.
+[startup] Iniciando country-agent…
+[startup] Modelo: gemini-3.6-flash (respaldo: gemini-flash-latest) · máximo de iteraciones: 5
+[country-agent-server] servidor iniciado por stdio
+[country-agent-server] tools/list
+[startup] Conectado a country-agent-server por stdio
+[startup] Herramientas descubiertas (tools/list): get_country_info, get_country_neighbors
+[startup] Agente escuchando en el puerto 10000
 ```
 
 <!-- logs:fin -->

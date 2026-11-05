@@ -29,7 +29,20 @@ const notFound = (countryName: string) =>
  * GET a la v5 con manejo de errores HTTP y de red.
  * Devuelve la lista cruda de data.objects (sin validar su contenido).
  */
+// Caché en memoria: la API limita a 20 pedidos cada 10 segundos y el agente puede consultar varios países seguidos
+const CACHE_TTL_MS = 10 * 60 * 1000;
+const cache = new Map<string, { objects: any[]; expiresAt: number }>();
+
 export async function fetchCountryObjects(path: string): Promise<{ ok: true; objects: any[] } | ServiceError> {
+  const cached = cache.get(path);
+  if (cached && cached.expiresAt > Date.now()) return { ok: true, objects: cached.objects };
+
+  const result = await requestCountryObjects(path);
+  if (result.ok) cache.set(path, { objects: result.objects, expiresAt: Date.now() + CACHE_TTL_MS });
+  return result;
+}
+
+async function requestCountryObjects(path: string): Promise<{ ok: true; objects: any[] } | ServiceError> {
   const env = loadEnv();
   if (!env.ok) return fail("CONFIG_ERROR", env.error);
 
@@ -83,7 +96,8 @@ export async function findCountryRecord(countryName: string): Promise<{ ok: true
  */
 function toCandidate(raw: any): unknown {
   const capitals = Array.isArray(raw?.capitals) ? raw.capitals : [];
-  const capital = capitals.find((item: any) => item?.primary) ?? capitals[0];
+  const capital =
+    capitals.find((item: any) => item?.attributes?.primary || item?.primary) ?? capitals[0];
   return {
     name: raw?.names?.common,
     capital: typeof capital === "string" ? capital : capital?.name,

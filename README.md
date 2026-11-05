@@ -1,26 +1,51 @@
-# Agente de IA — Preentrega 1: Contrato de datos
+# Construí tu propio agente de IA — Agente de países
 
-Capa de datos validada del agente: recibe el nombre de un país, lo valida y normaliza con Zod, consulta la [REST Countries API](https://restcountries.com) y devuelve siempre un objeto limpio y tipado, o un error descriptivo. Nunca lanza una excepción sin capturar.
+Agente de IA construido por etapas sobre la [REST Countries API](https://restcountries.com).
 
-Es la base de las próximas etapas: en la Preentrega 2 `getCountryInfo` se expone como herramienta MCP y en el Proyecto Final Gemini la usa como motor de razonamiento.
+| Etapa | Qué agrega | Estado |
+| --- | --- | --- |
+| Preentrega 1 | Capa de datos validada con Zod (`getCountryInfo`) | ✅ |
+| Preentrega 2 | Servidor MCP `country-agent-server` con la herramienta `get_country_info` por stdio | ✅ |
+| Proyecto Final | Host con Gemini que descubre la herramienta y orquesta el ciclo de razonamiento | Pendiente |
 
 ## Estructura
 
 ```
 src/
 ├── schemas/
-│   ├── country-input.schema.ts    # Contrato de entrada (lo que va a mandar el modelo)
+│   ├── country-input.schema.ts    # Contrato de entrada (también es el contrato de la tool MCP)
 │   └── country-output.schema.ts   # Contrato de salida (el objeto limpio)
 ├── services/
 │   └── countries.service.ts       # getCountryInfo: validar → consultar → validar salida
 ├── config/
 │   └── env.ts                     # GEMINI_API_KEY validada con Zod (para el Proyecto Final)
-└── demo.ts                        # Tres escenarios de prueba
+├── server.ts                      # Servidor MCP: capa de transporte, sin lógica de negocio
+└── demo.ts                        # Demo de la capa de datos (Preentrega 1)
 scripts/
-└── update-evidence.mjs            # Corre el demo y pega la salida en este README
+├── mcp-exchange.mjs               # Cliente JSON-RPC mínimo que conversa con el servidor por stdio
+└── update-evidence.mjs            # Genera la evidencia y la pega en este README
+docs/
+└── mcp-inspector.png              # Captura del MCP Inspector
 ```
 
-## Contratos
+## Arquitectura en capas
+
+```
+Cliente MCP (Inspector, Claude Desktop, host con Gemini)
+        │  JSON-RPC sobre stdio
+        ▼
+src/server.ts ─────────── transporte + tools/list + tools/call
+        │  importa
+        ▼
+src/services/countries.service.ts ── lógica de negocio (Preentrega 1, sin cambios)
+        │  valida con
+        ▼
+src/schemas/*.schema.ts ── contratos de entrada y salida
+```
+
+`server.ts` no contiene ni un `fetch`: solo anuncia la herramienta, valida los argumentos e invoca `getCountryInfo`.
+
+## Preentrega 1 — Contrato de datos
 
 **Entrada (`CountryInputSchema`)**
 
@@ -37,41 +62,87 @@ scripts/
 | `population` | number | `.refine()`: no puede ser negativa |
 | `region` | string | no vacío |
 
-Los dos esquemas exportan sus tipos con `z.infer`, así el contrato vive en un solo lugar.
+`getCountryInfo` trabaja en tres pasos:
 
-## Cómo funciona `getCountryInfo`
+1. Valida la entrada con `safeParse` (`INVALID_INPUT`).
+2. Consulta la API (`NOT_FOUND`, `API_ERROR`, `NETWORK_ERROR`).
+3. Valida la salida (`INVALID_RESPONSE`).
 
-1. **Validar la entrada** con `CountryInputSchema.safeParse()`. Si falla, devuelve `INVALID_INPUT`.
-2. **Consultar REST Countries** pidiendo solo los campos del contrato (`?fields=name,capital,population,region`). El 404 devuelve `NOT_FOUND`, otros códigos HTTP devuelven `API_ERROR` y los problemas de red o timeout devuelven `NETWORK_ERROR`.
-3. **Validar y normalizar la salida** con `CountryOutputSchema.safeParse()`. Si la API cambia su formato, devuelve `INVALID_RESPONSE` en lugar de romperse.
+Siempre devuelve `{ ok: true, data }` o `{ ok: false, error: { code, message } }` y nunca usa `.parse()`.
 
-El resultado siempre tiene la misma forma:
+## Preentrega 2 — Servidor MCP
 
-```ts
-{ ok: true,  data: { name, capital, population, region } }
-{ ok: false, error: { code, message } }
-```
+- **Identidad:** `country-agent-server` versión `1.0.0`, con la capacidad `tools`.
+- **`tools/list`:** anuncia `get_country_info` con su descripción y su `inputSchema` (`countryName` obligatorio, string, mínimo 2 caracteres). La descripción del parámetro se toma del esquema de Zod, así el contrato vive en un solo lugar.
+- **`tools/call`:**
+  1. Valida los argumentos con `CountryInputSchema.safeParse()` antes de ejecutar nada. Si no cumplen el contrato, nunca se llega al `fetch`.
+  2. Invoca `getCountryInfo`.
+  3. Devuelve el resultado como contenido `text` en formato JSON.
+- **Errores:** los argumentos inválidos, el país inexistente y las fallas de la API vuelven como un resultado con `isError: true` y un JSON `{ code, message }` legible. Ninguna excepción corta la sesión.
+- **Transporte:** `StdioServerTransport`. Todo el logging va a `stderr` con `console.error`, y el servidor no tiene ningún `console.log`.
 
-En todo el proyecto no se usa `.parse()`: toda validación pasa por `.safeParse()`.
-
-## Uso
+## Instalación y uso
 
 Requiere Node.js 18 o superior.
 
 ```bash
 npm install
-cp .env.example .env   # opcional en esta etapa: completá GEMINI_API_KEY
-npm run demo           # corre los tres escenarios
-npm run typecheck      # verifica los tipos con TypeScript
-npm run evidence       # corre el demo y actualiza la sección Evidencia
+cp .env.example .env     # opcional en esta etapa
+npm run build            # compila TypeScript a dist/
+npm start                # arranca el servidor MCP por stdio (node dist/server.js)
+```
+
+Otros comandos:
+
+```bash
+npm run demo             # demo de la capa de datos (Preentrega 1)
+npm run inspector        # abre el MCP Inspector conectado al servidor
+npm run evidence         # regenera la sección Evidencia de este README
+```
+
+### Ejemplo de mensaje JSON-RPC
+
+Con el servidor corriendo (`npm start`), cada mensaje se envía por `stdin` como una línea de JSON. Primero va el handshake (`initialize` y la notificación `notifications/initialized`) y después se llama a la herramienta:
+
+```json
+{"jsonrpc":"2.0","id":3,"method":"tools/call","params":{"name":"get_country_info","arguments":{"countryName":"Argentina"}}}
+```
+
+### Usarlo desde Claude Desktop
+
+```json
+{
+  "mcpServers": {
+    "country-agent-server": {
+      "command": "node",
+      "args": ["/ruta/absoluta/al/repo/dist/server.js"]
+    }
+  }
+}
 ```
 
 ## Evidencia
 
-Salida real de `npm run demo` con los tres escenarios: país válido, país inexistente y entrada inválida.
+### Preentrega 1 — Salida de `npm run demo`
+
+Tres escenarios: país válido, país inexistente y entrada inválida.
 
 <!-- evidencia:inicio -->
 
-_Pendiente: ejecutar `npm run evidence` para pegar acá la salida de consola._
+_Pendiente: ejecutar `npm run evidence`._
 
 <!-- evidencia:fin -->
+
+### Preentrega 2 — Intercambio JSON-RPC por stdio
+
+Handshake, `tools/list` y tres llamadas a `tools/call`: país válido, país inexistente y argumentos inválidos.
+
+<!-- evidencia-mcp:inicio -->
+
+_Pendiente: ejecutar `npm run evidence`._
+
+<!-- evidencia-mcp:fin -->
+
+### Preentrega 2 — MCP Inspector
+
+![MCP Inspector ejecutando get_country_info](docs/mcp-inspector.png)

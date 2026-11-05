@@ -1,22 +1,31 @@
-// Corre el demo y pega su salida real en la sección "## Evidencia" del README.
+// Genera la evidencia real y la pega en el README:
+// - Preentrega 1: salida de `npm run demo`
+// - Preentrega 2: intercambio JSON-RPC con el servidor MCP por stdio
 import { execSync } from "node:child_process";
 import { readFileSync, writeFileSync } from "node:fs";
 
-const START = "<!-- evidencia:inicio -->";
-const END = "<!-- evidencia:fin -->";
+const run = (command) => execSync(command, { encoding: "utf8", stdio: ["ignore", "pipe", "ignore"] }).trim();
 
-const output = execSync("npx tsx src/demo.ts", { encoding: "utf8" }).trim();
-const readme = readFileSync("README.md", "utf8");
-
-const startIndex = readme.indexOf(START);
-const endIndex = readme.indexOf(END);
-if (startIndex === -1 || endIndex === -1) {
-  console.error("No encontré los marcadores de evidencia en el README.");
-  process.exit(1);
+function replaceBlock(readme, marker, content) {
+  const start = `<!-- ${marker}:inicio -->`;
+  const end = `<!-- ${marker}:fin -->`;
+  const startIndex = readme.indexOf(start);
+  const endIndex = readme.indexOf(end);
+  if (startIndex === -1 || endIndex === -1) {
+    throw new Error(`No encontré los marcadores "${marker}" en el README.`);
+  }
+  return readme.slice(0, startIndex) + `${start}\n\n${content}\n\n${end}` + readme.slice(endIndex + end.length);
 }
 
-const block = `${START}\n\n\`\`\`text\n$ npm run demo\n${output}\n\`\`\`\n\n${END}`;
-writeFileSync("README.md", readme.slice(0, startIndex) + block + readme.slice(endIndex + END.length));
+execSync("npm run build", { stdio: "ignore" });
 
-console.log(output);
-console.log("\n✔ README actualizado con la salida del demo.");
+const demo = run("npx tsx src/demo.ts");
+const exchange = run("node scripts/mcp-exchange.mjs");
+
+let readme = readFileSync("README.md", "utf8");
+readme = replaceBlock(readme, "evidencia", "```text\n$ npm run demo\n" + demo + "\n```");
+readme = replaceBlock(readme, "evidencia-mcp", "```text\n$ node scripts/mcp-exchange.mjs\n\n" + exchange + "\n```");
+writeFileSync("README.md", readme);
+
+console.log(demo + "\n\n" + exchange);
+console.log("\n✔ README actualizado con la evidencia de las preentregas 1 y 2.");

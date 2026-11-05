@@ -1,0 +1,26 @@
+{
+  "name": "agente-ia-preentrega-1",
+  "version": "1.0.0",
+  "description": "",
+  "scripts": {
+    "demo": "tsx src/demo.ts",
+    "typecheck": "tsc",
+    "evidence": "node scripts/update-evidence.mjs"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "dependencies": {
+    "dotenv": "^18.0.9",
+    "zod": "^3.25.76"
+  },
+  "devDependencies": {
+    "@types/node": "^26.6.6",
+    "tsx": "^4.23.15",
+    "typescript": "^7.0.2"
+  },
+  "type": "module",
+  "engines": {
+    "node": ">=18"
+  }
+}

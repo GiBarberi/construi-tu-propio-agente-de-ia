@@ -17,7 +17,7 @@ function replaceBlock(readme, marker, content) {
   return readme.slice(0, startIndex) + `${start}\n\n${content}\n\n${end}` + readme.slice(endIndex + end.length);
 }
 
-execSync("npm run build", { stdio: "ignore" });
+execSync("npm run build", { stdio: "inherit" });
 
 const demo = run("npx tsx src/demo.ts");
 const exchange = run("node scripts/mcp-exchange.mjs");

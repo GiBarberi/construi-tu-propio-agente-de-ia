@@ -1,4 +1,4 @@
-import { GoogleGenerativeAI, type Content, type FunctionCall, type Part } from "@google/generative-ai";
+import { GoogleGenerativeAI, type Content, type FunctionCall, type GenerativeModel, type Part } from "@google/generative-ai";
 import { toolInputSchemas } from "../schemas/tool-inputs.js";
 import { mcpToolsToGemini } from "./gemini-tools.js";
 import type { CountryMcpClient } from "./mcp-client.js";
@@ -87,31 +87,63 @@ export class CountryAgent {
     };
   }
 
+  /** Llama a Gemini reintentando ante saturación temporal (429/500/503). */
+  private async generate(model: GenerativeModel, contents: Content[]) {
+    const delays = [1000, 2500, 5000];
+    for (let attempt = 0; ; attempt++) {
+      try {
+        return await model.generateContent({ contents });
+      } catch (error) {
+        const status = (error as { status?: number }).status;
+        const retryable = status === 429 || status === 500 || status === 503;
+        if (!retryable || attempt >= delays.length) {
+          if (retryable) throw new Error("Gemini está con mucha demanda en este momento. Probá de nuevo en unos segundos.");
+          throw error;
+        }
+        console.log(`[agent] Gemini respondió ${status}: reintento ${attempt + 1} de ${delays.length}`);
+        await new Promise((resolve) => setTimeout(resolve, delays[attempt]));
+      }
+    }
+  }
+
   async run(question: string, history: Content[] = []): Promise<AgentResult> {
-    // El ChatSession mantiene el historial: mensaje del usuario, llamadas, observaciones y respuestas
-    const chat = this.buildModel().startChat({ history });
+    const model = this.buildModel();
+    // Estado: el historial completo (usuario, llamadas, observaciones y respuestas) se reenvía en cada iteración
+    const contents: Content[] = [...history, { role: "user", parts: [{ text: question }] }];
     const steps: AgentStep[] = [];
-    let message: string | Part[] = question;
 
     for (let iteration = 1; iteration <= MAX_ITERATIONS; iteration++) {
-      const { response } = await chat.sendMessage(message);
+      const { response } = await this.generate(model, contents);
+      const modelContent = response.candidates?.[0]?.content;
+      if (!modelContent?.parts?.length) {
+        return {
+          answer: "No pude generar una respuesta para esa consulta. Probá reformularla.",
+          steps,
+          iterations: iteration,
+          history: contents,
+        };
+      }
+      // Se guarda tal cual vino (incluye metadatos que Gemini necesita en la próxima vuelta)
+      contents.push({ ...modelContent, role: "model" });
+
       const calls = response.functionCalls() ?? [];
-
       if (calls.length === 0) {
-        return { answer: response.text().trim(), steps, iterations: iteration, history: await chat.getHistory() };
+        return { answer: response.text().trim(), steps, iterations: iteration, history: contents };
       }
 
-      message = [];
+      const observations: Part[] = [];
       for (const call of calls) {
-        message.push(await this.executeCall(call, iteration, steps));
+        observations.push(await this.executeCall(call, iteration, steps));
       }
+      // La API actual de Gemini espera las observaciones con rol "user" (el rol "function" ya no se acepta)
+      contents.push({ role: "user", parts: observations });
     }
 
     return {
       answer: `Alcancé el límite de ${MAX_ITERATIONS} iteraciones sin llegar a una respuesta final. Probá reformular la pregunta o dividirla en partes más simples.`,
       steps,
       iterations: MAX_ITERATIONS,
-      history: await chat.getHistory(),
+      history: contents,
     };
   }
 }

@@ -89,7 +89,7 @@ async function main() {
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error);
       console.error(`[error] ${message}`);
-      sendJson(res, 500, { error: "El agente no pudo procesar la consulta.", detail: message });
+      sendJson(res, 500, { error: `El agente no pudo procesar la consulta: ${message}` });
     }
   });
 

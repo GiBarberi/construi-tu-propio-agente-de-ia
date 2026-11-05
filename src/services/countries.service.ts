@@ -1,13 +1,14 @@
+import { loadEnv } from "../config/env.js";
 import { CountryInputSchema } from "../schemas/country-input.schema.js";
 import { CountryOutputSchema, type Country } from "../schemas/country-output.schema.js";
 
-const BASE_URL = "https://restcountries.com/v3.1/name";
-// Pedimos solo los campos del contrato: menos datos, menos tokens para el modelo
-const FIELDS = "name,capital,population,region";
+// REST Countries v3.1 fue deprecada: usamos la v5, que requiere API key (plan gratuito)
+const BASE_URL = "https://api.restcountries.com/countries/v5/names.common";
 const TIMEOUT_MS = 8000;
 
 export type CountryErrorCode =
   | "INVALID_INPUT"
+  | "CONFIG_ERROR"
   | "NOT_FOUND"
   | "API_ERROR"
   | "NETWORK_ERROR"
@@ -22,14 +23,19 @@ const fail = (code: CountryErrorCode, message: string): CountryResult => ({
   error: { code, message },
 });
 
+const notFound = (countryName: string) =>
+  fail("NOT_FOUND", `No se encontró el país '${countryName}'. Verificá el nombre (en inglés, ej: 'France').`);
+
 /**
- * Mapea la respuesta cruda (sin confiar en su forma) al contrato de salida.
+ * Mapea un registro crudo de la v5 (sin confiar en su forma) al contrato de salida.
  * No valida: solo arma el candidato que después revisa CountryOutputSchema.
  */
 function toCandidate(raw: any): unknown {
+  const capitals = Array.isArray(raw?.capitals) ? raw.capitals : [];
+  const capital = capitals.find((item: any) => item?.primary) ?? capitals[0];
   return {
-    name: raw?.name?.common,
-    capital: Array.isArray(raw?.capital) ? raw.capital[0] : raw?.capital,
+    name: raw?.names?.common,
+    capital: typeof capital === "string" ? capital : capital?.name,
     population: raw?.population,
     region: raw?.region,
   };
@@ -44,17 +50,24 @@ export async function getCountryInfo(input: unknown): Promise<CountryResult> {
   }
   const { countryName } = parsedInput.data;
 
-  // ── Tramo 2: consultar REST Countries ───────────────────────────────
-  let body: unknown;
-  try {
-    const url = `${BASE_URL}/${encodeURIComponent(countryName)}?fields=${FIELDS}`;
-    const response = await fetch(url, { signal: AbortSignal.timeout(TIMEOUT_MS) });
+  const env = loadEnv();
+  if (!env.ok) return fail("CONFIG_ERROR", env.error);
 
-    if (response.status === 404) {
-      return fail(
-        "NOT_FOUND",
-        `No se encontró el país '${countryName}'. Verificá el nombre (en inglés, ej: 'France').`
-      );
+  // ── Tramo 2: consultar REST Countries ───────────────────────────────
+  let body: any;
+  try {
+    const url = `${BASE_URL}?q=${encodeURIComponent(countryName)}`;
+    const response = await fetch(url, {
+      headers: { Authorization: `Bearer ${env.env.RESTCOUNTRIES_API_KEY}` },
+      signal: AbortSignal.timeout(TIMEOUT_MS),
+    });
+
+    if (response.status === 404) return notFound(countryName);
+    if (response.status === 401 || response.status === 403) {
+      return fail("API_ERROR", `REST Countries rechazó la API key (HTTP ${response.status}). Revisá RESTCOUNTRIES_API_KEY.`);
+    }
+    if (response.status === 429) {
+      return fail("API_ERROR", "REST Countries limitó las consultas (HTTP 429). Probá de nuevo en unos segundos.");
     }
     if (!response.ok) {
       return fail("API_ERROR", `REST Countries respondió con error HTTP ${response.status}.`);
@@ -67,14 +80,17 @@ export async function getCountryInfo(input: unknown): Promise<CountryResult> {
   }
 
   // ── Tramo 3: validar y normalizar la salida ──────────────────────────
-  if (!Array.isArray(body) || body.length === 0) {
-    return fail("INVALID_RESPONSE", "REST Countries devolvió una respuesta vacía o inesperada.");
+  // La v5 devuelve los resultados en data.objects
+  const objects = body?.data?.objects;
+  if (!Array.isArray(objects)) {
+    return fail("INVALID_RESPONSE", "REST Countries devolvió una respuesta con un formato inesperado.");
   }
+  if (objects.length === 0) return notFound(countryName);
 
-  // La búsqueda por nombre es parcial: priorizamos la coincidencia exacta
+  // La búsqueda es parcial ("India" puede traer más de un país): priorizamos la coincidencia exacta
   const match =
-    body.find((item: any) => String(item?.name?.common ?? "").toLowerCase() === countryName) ??
-    body[0];
+    objects.find((item: any) => String(item?.names?.common ?? "").toLowerCase() === countryName) ??
+    objects[0];
 
   const parsedOutput = CountryOutputSchema.safeParse(toCandidate(match));
   if (!parsedOutput.success) {

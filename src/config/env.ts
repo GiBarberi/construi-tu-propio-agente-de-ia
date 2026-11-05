@@ -1,12 +1,20 @@
-import "dotenv/config";
+import { config } from "dotenv";
 import { z } from "zod";
+
+// quiet: true → dotenv no escribe nada en stdout (en stdio, stdout es el canal de JSON-RPC)
+config({ quiet: true });
 
 /**
  * Variables de entorno validadas con Zod.
- * Todavía no se usan en esta preentrega: quedan listas para conectar Gemini en el Proyecto Final.
+ * - RESTCOUNTRIES_API_KEY: necesaria desde que REST Countries pasó a la v5.
+ * - GEMINI_API_KEY: queda lista para el Proyecto Final.
  */
 const EnvSchema = z.object({
-  GEMINI_API_KEY: z.string().min(1, "Falta GEMINI_API_KEY en el archivo .env."),
+  RESTCOUNTRIES_API_KEY: z
+    .string({ required_error: "Falta RESTCOUNTRIES_API_KEY en el archivo .env." })
+    .trim()
+    .min(1, "Falta RESTCOUNTRIES_API_KEY en el archivo .env."),
+  GEMINI_API_KEY: z.string().optional(),
 });
 
 export type Env = z.infer<typeof EnvSchema>;

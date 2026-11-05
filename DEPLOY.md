@@ -64,7 +64,70 @@ Generadas con `npm run transcripts -- <URL>`, que envía las preguntas al agente
 
 <!-- transcripciones:inicio -->
 
-_PENDIENTE: ejecutar `npm run transcripts -- https://country-agent-5c91.onrender.com`._
+Generado el 2026-11-05T18:51:38.258Z contra `https://country-agent-5c91.onrender.com`.
+
+### Conversación 1 — Consulta de varios pasos
+
+```text
+Usuario: ¿Cuál de los países limítrofes de Brasil tiene mayor población?
+
+[iteración 1] get_country_neighbors({"countryName":"Brazil"}) → OK
+    resultado: {"country":"Brazil","neighbors":[{"code":"ARG","name":"Argentina"},{"code":"BOL","name":"Bolivia"},{"code":"COL","name":"Colombia"},{"code":"GUF","name":"French Guiana"},{"code":"GUY","name":"Guyana"},{"code":"PRY","name":"Paraguay"},{"code":"PER","name":"Peru"},{"code":"SUR","name":"Suriname"},{"code":"URY","name":"Uruguay"},{"code":"VEN","name":"Venezuela"}]}
+[iteración 2] get_country_info({"countryName":"Argentina"}) → OK
+    resultado: {"name":"Argentina","capital":"Buenos Aires","population":46466688,"region":"Americas"}
+[iteración 2] get_country_info({"countryName":"Bolivia"}) → OK
+    resultado: {"name":"Bolivia","capital":"Sucre","population":11365333,"region":"Americas"}
+[iteración 2] get_country_info({"countryName":"Colombia"}) → OK
+    resultado: {"name":"Colombia","capital":"Bogotá","population":53399171,"region":"Americas"}
+[iteración 2] get_country_info({"countryName":"French Guiana"}) → OK
+    resultado: {"name":"French Guiana","capital":"Cayenne","population":254541,"region":"Americas"}
+[iteración 2] get_country_info({"countryName":"Guyana"}) → OK
+    resultado: {"name":"Guyana","capital":"Georgetown","population":956044,"region":"Americas"}
+[iteración 2] get_country_info({"countryName":"Paraguay"}) → OK
+    resultado: {"name":"Paraguay","capital":"Asunción","population":6109644,"region":"Americas"}
+[iteración 2] get_country_info({"countryName":"Peru"}) → OK
+    resultado: {"name":"Peru","capital":"Lima","population":34157732,"region":"Americas"}
+[iteración 2] get_country_info({"countryName":"Suriname"}) → OK
+    resultado: {"name":"Suriname","capital":"Paramaribo","population":616500,"region":"Americas"}
+[iteración 2] get_country_info({"countryName":"Uruguay"}) → OK
+    resultado: {"name":"Uruguay","capital":"Montevideo","population":3480601,"region":"Americas"}
+[iteración 2] get_country_info({"countryName":"Venezuela"}) → OK
+    resultado: {"name":"Venezuela","capital":"Caracas","population":28633711,"region":"Americas"}
+
+Agente: El país limítrofe de Brasil con mayor población es **Colombia**, con **53.399.171 habitantes**. 
+
+A modo de comparación, las poblaciones de sus vecinos son:
+- **Colombia:** 53.399.171
+- **Argentina:** 46.466.688
+- **Perú:** 34.157.732
+- **Venezuela:** 28.633.711
+- **Bolivia:** 11.365.333
+- **Paraguay:** 6.109.644
+- **Uruguay:** 3.480.601
+- **Guyana:** 956.044
+- **Surinam:** 616.500
+- **Guayana Francesa:** 254.541
+
+(iteraciones del modelo: 3)
+```
+
+### Conversación 2 — Consulta fuera de alcance
+
+```text
+Usuario: ¿Cómo hago una pizza?
+
+[herramientas] Ninguna: el agente no invocó herramientas.
+
+Agente: Lo siento, no puedo ayudarte con recetas ni consultas que no estén relacionadas con información geográfica de países. 
+
+Puedo ayudarte a responder preguntas sobre:
+- La **capital**, la **población** y la **región/continente** de cualquier país.
+- Los **países limítrofes** (fronteras terrestres) de un país determinado.
+
+Si querés saber datos sobre algún país, ¡solo preguntame!
+
+(iteraciones del modelo: 1)
+```
 
 <!-- transcripciones:fin -->
 

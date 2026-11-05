@@ -343,3 +343,5 @@ $ node scripts/mcp-exchange.mjs
 ### Preentrega 2 — MCP Inspector
 
 ![MCP Inspector ejecutando get_country_info](docs/mcp-inspector.png)
+
+El Inspector se conectó a `country-agent-server`, listó la herramienta (`tools/list` OK) y ejecutó `get_country_info` con `Argentina` (`tools/call` OK). Los errores en `resources/list` y `prompts/list` son esperables: el servidor declara solo la capacidad `tools`, así que rechaza los métodos de capacidades que no ofrece.

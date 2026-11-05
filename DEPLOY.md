@@ -48,6 +48,13 @@ services:
 
 ![Panel de Render con el servicio activo](docs/render-panel.png)
 
+En el panel se ven:
+
+- El Web Service `country-agent` (Node, plan Free, administrado por Blueprint) con el estado **Live**.
+- La URL pública.
+- El repositorio y la rama conectados.
+- El historial de despliegues automáticos (*Auto-Deploy*), que se disparan con cada push a `main`.
+
 ## 4. Logs de arranque en Render
 
 Copiados del panel de Render (**country-agent → Logs**). Las líneas muestran el arranque en orden:

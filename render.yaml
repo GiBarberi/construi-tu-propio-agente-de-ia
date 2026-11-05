@@ -1,0 +1,19 @@
+# Blueprint de Render: https://render.com/docs/blueprint-spec
+services:
+  - type: web
+    name: country-agent
+    runtime: node
+    plan: free
+    buildCommand: npm ci && npm run build
+    startCommand: npm start
+    healthCheckPath: /health
+    envVars:
+      - key: NODE_VERSION
+        value: "22"
+      - key: GEMINI_MODEL
+        value: gemini-flash-latest
+      # Secretos: se cargan a mano en el panel de Render, nunca en el repositorio
+      - key: GEMINI_API_KEY
+        sync: false
+      - key: RESTCOUNTRIES_API_KEY
+        sync: false

@@ -6,14 +6,19 @@
     "demo": "tsx src/demo.ts",
     "evidence": "node scripts/update-evidence.mjs",
     "build": "tsc",
-    "start": "node dist/server.js",
+    "start": "node dist/http.js",
     "inspector": "npx @modelcontextprotocol/inspector node dist/server.js",
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc --noEmit",
+    "mcp-server": "node dist/server.js",
+    "cli": "node dist/cli.js",
+    "dev": "npm run build && node dist/http.js",
+    "transcripts": "node scripts/transcripts.mjs"
   },
   "keywords": [],
   "author": "",
   "license": "ISC",
   "dependencies": {
+    "@google/generative-ai": "^0.24.1",
     "@modelcontextprotocol/sdk": "^1.32.2",
     "dotenv": "^18.0.9",
     "zod": "^3.25.76"
@@ -25,6 +30,6 @@
   },
   "type": "module",
   "engines": {
-    "node": ">=18"
+    "node": ">=20"
   }
 }

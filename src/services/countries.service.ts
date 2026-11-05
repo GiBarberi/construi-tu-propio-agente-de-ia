@@ -3,7 +3,7 @@ import { CountryInputSchema } from "../schemas/country-input.schema.js";
 import { CountryOutputSchema, type Country } from "../schemas/country-output.schema.js";
 
 // REST Countries v3.1 fue deprecada: usamos la v5, que requiere API key (plan gratuito)
-const BASE_URL = "https://api.restcountries.com/countries/v5/names.common";
+const API_URL = "https://api.restcountries.com/countries/v5";
 const TIMEOUT_MS = 8000;
 
 export type CountryErrorCode =
@@ -14,17 +14,68 @@ export type CountryErrorCode =
   | "NETWORK_ERROR"
   | "INVALID_RESPONSE";
 
-export type CountryResult =
-  | { ok: true; data: Country }
-  | { ok: false; error: { code: CountryErrorCode; message: string } };
+export type ServiceError = { ok: false; error: { code: CountryErrorCode; message: string } };
+export type CountryResult = { ok: true; data: Country } | ServiceError;
 
-const fail = (code: CountryErrorCode, message: string): CountryResult => ({
+export const fail = (code: CountryErrorCode, message: string): ServiceError => ({
   ok: false,
   error: { code, message },
 });
 
 const notFound = (countryName: string) =>
   fail("NOT_FOUND", `No se encontró el país '${countryName}'. Verificá el nombre (en inglés, ej: 'France').`);
+
+/**
+ * GET a la v5 con manejo de errores HTTP y de red.
+ * Devuelve la lista cruda de data.objects (sin validar su contenido).
+ */
+export async function fetchCountryObjects(path: string): Promise<{ ok: true; objects: any[] } | ServiceError> {
+  const env = loadEnv();
+  if (!env.ok) return fail("CONFIG_ERROR", env.error);
+
+  let body: any;
+  try {
+    const response = await fetch(`${API_URL}${path}`, {
+      headers: { Authorization: `Bearer ${env.env.RESTCOUNTRIES_API_KEY}` },
+      signal: AbortSignal.timeout(TIMEOUT_MS),
+    });
+
+    if (response.status === 404) return { ok: true, objects: [] };
+    if (response.status === 401 || response.status === 403) {
+      return fail("API_ERROR", `REST Countries rechazó la API key (HTTP ${response.status}). Revisá RESTCOUNTRIES_API_KEY.`);
+    }
+    if (response.status === 429) {
+      return fail("API_ERROR", "REST Countries limitó las consultas (HTTP 429). Probá de nuevo en unos segundos.");
+    }
+    if (!response.ok) {
+      return fail("API_ERROR", `REST Countries respondió con error HTTP ${response.status}.`);
+    }
+    body = await response.json();
+  } catch (error) {
+    const detail = error instanceof Error ? error.message : String(error);
+    return fail("NETWORK_ERROR", `No se pudo consultar REST Countries: ${detail}`);
+  }
+
+  // La v5 devuelve los resultados en data.objects
+  const objects = body?.data?.objects;
+  if (!Array.isArray(objects)) {
+    return fail("INVALID_RESPONSE", "REST Countries devolvió una respuesta con un formato inesperado.");
+  }
+  return { ok: true, objects };
+}
+
+/** Busca por nombre común (parcial) y prioriza la coincidencia exacta. */
+export async function findCountryRecord(countryName: string): Promise<{ ok: true; record: any } | ServiceError> {
+  const result = await fetchCountryObjects(`/names.common?q=${encodeURIComponent(countryName)}`);
+  if (!result.ok) return result;
+  if (result.objects.length === 0) return notFound(countryName);
+
+  // La búsqueda es parcial ("India" puede traer más de un país)
+  const record =
+    result.objects.find((item: any) => String(item?.names?.common ?? "").toLowerCase() === countryName) ??
+    result.objects[0];
+  return { ok: true, record };
+}
 
 /**
  * Mapea un registro crudo de la v5 (sin confiar en su forma) al contrato de salida.
@@ -48,51 +99,13 @@ export async function getCountryInfo(input: unknown): Promise<CountryResult> {
     const message = parsedInput.error.issues.map((issue) => issue.message).join(" ");
     return fail("INVALID_INPUT", message);
   }
-  const { countryName } = parsedInput.data;
-
-  const env = loadEnv();
-  if (!env.ok) return fail("CONFIG_ERROR", env.error);
 
   // ── Tramo 2: consultar REST Countries ───────────────────────────────
-  let body: any;
-  try {
-    const url = `${BASE_URL}?q=${encodeURIComponent(countryName)}`;
-    const response = await fetch(url, {
-      headers: { Authorization: `Bearer ${env.env.RESTCOUNTRIES_API_KEY}` },
-      signal: AbortSignal.timeout(TIMEOUT_MS),
-    });
-
-    if (response.status === 404) return notFound(countryName);
-    if (response.status === 401 || response.status === 403) {
-      return fail("API_ERROR", `REST Countries rechazó la API key (HTTP ${response.status}). Revisá RESTCOUNTRIES_API_KEY.`);
-    }
-    if (response.status === 429) {
-      return fail("API_ERROR", "REST Countries limitó las consultas (HTTP 429). Probá de nuevo en unos segundos.");
-    }
-    if (!response.ok) {
-      return fail("API_ERROR", `REST Countries respondió con error HTTP ${response.status}.`);
-    }
-
-    body = await response.json();
-  } catch (error) {
-    const detail = error instanceof Error ? error.message : String(error);
-    return fail("NETWORK_ERROR", `No se pudo consultar REST Countries: ${detail}`);
-  }
+  const found = await findCountryRecord(parsedInput.data.countryName);
+  if (!found.ok) return found;
 
   // ── Tramo 3: validar y normalizar la salida ──────────────────────────
-  // La v5 devuelve los resultados en data.objects
-  const objects = body?.data?.objects;
-  if (!Array.isArray(objects)) {
-    return fail("INVALID_RESPONSE", "REST Countries devolvió una respuesta con un formato inesperado.");
-  }
-  if (objects.length === 0) return notFound(countryName);
-
-  // La búsqueda es parcial ("India" puede traer más de un país): priorizamos la coincidencia exacta
-  const match =
-    objects.find((item: any) => String(item?.names?.common ?? "").toLowerCase() === countryName) ??
-    objects[0];
-
-  const parsedOutput = CountryOutputSchema.safeParse(toCandidate(match));
+  const parsedOutput = CountryOutputSchema.safeParse(toCandidate(found.record));
   if (!parsedOutput.success) {
     const message = parsedOutput.error.issues
       .map((issue) => `${issue.path.join(".")}: ${issue.message}`)

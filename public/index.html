@@ -1,0 +1,128 @@
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Agente de países</title>
+  <style>
+    :root {
+      --paper: #f4f1ea;
+      --ink: #1d1b18;
+      --muted: #6f6a60;
+      --line: #d9d3c6;
+      --accent: #c2410c;
+      --tool: #0f5f5c;
+      --card: #fffdf8;
+      --mono: ui-monospace, "SFMono-Regular", Menlo, Consolas, monospace;
+      --sans: "Helvetica Neue", Helvetica, Arial, sans-serif;
+    }
+    * { box-sizing: border-box; }
+    body { margin: 0; background: var(--paper); color: var(--ink); font: 16px/1.5 var(--sans); }
+    main { max-width: 760px; margin: 0 auto; padding: 40px 16px 140px; }
+    header { border-bottom: 2px solid var(--ink); padding-bottom: 16px; margin-bottom: 28px; }
+    .kicker { font: 600 12px/1 var(--mono); letter-spacing: .12em; text-transform: uppercase; color: var(--accent); }
+    h1 { font-size: clamp(32px, 6vw, 48px); line-height: 1; margin: 10px 0 8px; letter-spacing: -.02em; }
+    header p { margin: 0; color: var(--muted); max-width: 52ch; }
+    .tools { margin-top: 12px; font: 12px var(--mono); color: var(--tool); }
+    .examples { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 24px; }
+    .examples button { border: 1px solid var(--line); background: var(--card); color: var(--ink); padding: 8px 12px; border-radius: 999px; font: 14px var(--sans); cursor: pointer; }
+    .examples button:hover { border-color: var(--ink); }
+    .msg { margin: 0 0 20px; }
+    .who { font: 600 11px/1 var(--mono); letter-spacing: .1em; text-transform: uppercase; color: var(--muted); margin-bottom: 6px; }
+    .user .bubble { background: var(--ink); color: var(--paper); display: inline-block; padding: 10px 14px; border-radius: 4px 14px 14px 14px; }
+    .agent .bubble { background: var(--card); border: 1px solid var(--line); padding: 14px 16px; border-radius: 14px 4px 14px 14px; white-space: pre-wrap; }
+    .steps { margin-top: 10px; border-left: 3px solid var(--tool); padding: 4px 0 4px 12px; font: 12px/1.6 var(--mono); color: var(--tool); }
+    .steps .err { color: var(--accent); }
+    .none { color: var(--muted); }
+    form { position: fixed; left: 0; right: 0; bottom: 0; background: linear-gradient(transparent, var(--paper) 30%); padding: 28px 16px 20px; }
+    .bar { max-width: 760px; margin: 0 auto; display: flex; gap: 8px; }
+    input { flex: 1; min-width: 0; border: 2px solid var(--ink); background: var(--card); padding: 12px 14px; font: 16px var(--sans); border-radius: 10px; }
+    form button { border: 0; background: var(--accent); color: #fff; padding: 0 20px; font: 600 15px var(--sans); border-radius: 10px; cursor: pointer; }
+    form button:disabled { opacity: .5; cursor: wait; }
+  </style>
+</head>
+<body>
+  <main>
+    <header>
+      <div class="kicker">MCP · Gemini · REST Countries</div>
+      <h1>Agente de países</h1>
+      <p>Preguntá por capitales, poblaciones, regiones o países limítrofes. El agente decide qué herramientas usar y solo responde con lo que ellas devuelven.</p>
+      <div class="tools" id="tools">Conectando…</div>
+    </header>
+    <div class="examples">
+      <button type="button">¿Cuál de los países limítrofes de Brasil tiene mayor población?</button>
+      <button type="button">¿Cuál es la capital de Japón?</button>
+      <button type="button">¿Cómo hago una pizza?</button>
+    </div>
+    <section id="log"></section>
+  </main>
+  <form id="form">
+    <div class="bar">
+      <input id="input" autocomplete="off" placeholder="Escribí tu pregunta…" maxlength="500" />
+      <button id="send">Enviar</button>
+    </div>
+  </form>
+  <script>
+    const log = document.getElementById("log");
+    const input = document.getElementById("input");
+    const send = document.getElementById("send");
+    let sessionId;
+
+    fetch("/health").then(r => r.json()).then(d => {
+      document.getElementById("tools").textContent = "Herramientas descubiertas: " + d.tools.join(", ");
+    }).catch(() => { document.getElementById("tools").textContent = "No se pudo conectar con el agente."; });
+
+    function add(who, text, steps) {
+      const div = document.createElement("div");
+      div.className = "msg " + who;
+      div.innerHTML = '<div class="who"></div><div class="bubble"></div>';
+      div.querySelector(".who").textContent = who === "user" ? "Vos" : "Agente";
+      div.querySelector(".bubble").textContent = text;
+      if (steps) {
+        const s = document.createElement("div");
+        s.className = "steps";
+        if (!steps.length) s.innerHTML = '<span class="none">Sin herramientas invocadas</span>';
+        steps.forEach(st => {
+          const line = document.createElement("div");
+          line.textContent = `#${st.iteration} ${st.tool}(${JSON.stringify(st.args)}) ${st.ok ? "✓" : "✗"}`;
+          if (!st.ok) line.className = "err";
+          s.appendChild(line);
+        });
+        div.appendChild(s);
+      }
+      log.appendChild(div);
+      div.scrollIntoView({ behavior: "smooth", block: "end" });
+    }
+
+    async function ask(text) {
+      add("user", text);
+      send.disabled = true;
+      try {
+        const r = await fetch("/api/chat", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ message: text, sessionId })
+        });
+        const d = await r.json();
+        if (!r.ok) throw new Error(d.error || "Error");
+        sessionId = d.sessionId;
+        add("agent", d.answer, d.steps);
+      } catch (e) {
+        add("agent", "Error: " + e.message, []);
+      } finally {
+        send.disabled = false;
+        input.focus();
+      }
+    }
+
+    document.getElementById("form").addEventListener("submit", e => {
+      e.preventDefault();
+      const text = input.value.trim();
+      if (!text) return;
+      input.value = "";
+      ask(text);
+    });
+    document.querySelectorAll(".examples button").forEach(b => b.addEventListener("click", () => ask(b.textContent)));
+  </script>
+</body>
+</html>

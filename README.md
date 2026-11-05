@@ -131,7 +131,40 @@ Tres escenarios: país válido, país inexistente y entrada inválida.
 
 <!-- evidencia:inicio -->
 
-_Pendiente: ejecutar `npm run evidence`._
+```text
+$ npm run demo
+=== Escenario 1 — País válido ===
+Entrada: {"countryName":"  Argentina  "}
+Resultado: {
+  "ok": true,
+  "data": {
+    "name": "Argentina",
+    "capital": "Buenos Aires",
+    "population": 46466688,
+    "region": "Americas"
+  }
+}
+
+=== Escenario 2 — País inexistente ===
+Entrada: {"countryName":"Invernalia"}
+Resultado: {
+  "ok": false,
+  "error": {
+    "code": "NOT_FOUND",
+    "message": "No se encontró el país 'invernalia'. Verificá el nombre (en inglés, ej: 'France')."
+  }
+}
+
+=== Escenario 3 — Entrada inválida ===
+Entrada: {"countryName":"A"}
+Resultado: {
+  "ok": false,
+  "error": {
+    "code": "INVALID_INPUT",
+    "message": "countryName debe tener al menos 2 caracteres."
+  }
+}
+```
 
 <!-- evidencia:fin -->
 
@@ -141,7 +174,169 @@ Handshake, `tools/list` y tres llamadas a `tools/call`: país válido, país ine
 
 <!-- evidencia-mcp:inicio -->
 
-_Pendiente: ejecutar `npm run evidence`._
+```text
+$ node scripts/mcp-exchange.mjs
+
+### initialize (handshake)
+
+→ Cliente
+{
+  "jsonrpc": "2.0",
+  "id": 1,
+  "method": "initialize",
+  "params": {
+    "protocolVersion": "2025-06-18",
+    "capabilities": {},
+    "clientInfo": {
+      "name": "evidence-client",
+      "version": "1.0.0"
+    }
+  }
+}
+
+← Servidor
+{
+  "result": {
+    "protocolVersion": "2025-06-18",
+    "capabilities": {
+      "tools": {}
+    },
+    "serverInfo": {
+      "name": "country-agent-server",
+      "version": "1.0.0"
+    }
+  },
+  "jsonrpc": "2.0",
+  "id": 1
+}
+
+### tools/list
+
+→ Cliente
+{
+  "jsonrpc": "2.0",
+  "id": 2,
+  "method": "tools/list",
+  "params": {}
+}
+
+← Servidor
+{
+  "result": {
+    "tools": [
+      {
+        "name": "get_country_info",
+        "description": "Obtiene la capital, la población y la región de un país a partir de su nombre común en inglés. Usala cuando el usuario pregunte por la capital, la cantidad de habitantes o el continente/región de un país concreto. Devuelve un JSON con name, capital, population y region, o un error descriptivo si el país no existe.",
+        "inputSchema": {
+          "type": "object",
+          "properties": {
+            "countryName": {
+              "type": "string",
+              "minLength": 2,
+              "description": "Nombre común del país en inglés, por ejemplo 'Argentina', 'France' o 'Japan'."
+            }
+          },
+          "required": [
+            "countryName"
+          ],
+          "additionalProperties": false
+        }
+      }
+    ]
+  },
+  "jsonrpc": "2.0",
+  "id": 2
+}
+
+### tools/call — país válido
+
+→ Cliente
+{
+  "jsonrpc": "2.0",
+  "id": 3,
+  "method": "tools/call",
+  "params": {
+    "name": "get_country_info",
+    "arguments": {
+      "countryName": "Argentina"
+    }
+  }
+}
+
+← Servidor
+{
+  "result": {
+    "content": [
+      {
+        "type": "text",
+        "text": "{\n  \"name\": \"Argentina\",\n  \"capital\": \"Buenos Aires\",\n  \"population\": 46466688,\n  \"region\": \"Americas\"\n}"
+      }
+    ]
+  },
+  "jsonrpc": "2.0",
+  "id": 3
+}
+
+### tools/call — país inexistente
+
+→ Cliente
+{
+  "jsonrpc": "2.0",
+  "id": 4,
+  "method": "tools/call",
+  "params": {
+    "name": "get_country_info",
+    "arguments": {
+      "countryName": "Invernalia"
+    }
+  }
+}
+
+← Servidor
+{
+  "result": {
+    "content": [
+      {
+        "type": "text",
+        "text": "{\n  \"code\": \"NOT_FOUND\",\n  \"message\": \"No se encontró el país 'invernalia'. Verificá el nombre (en inglés, ej: 'France').\"\n}"
+      }
+    ],
+    "isError": true
+  },
+  "jsonrpc": "2.0",
+  "id": 4
+}
+
+### tools/call — argumentos inválidos
+
+→ Cliente
+{
+  "jsonrpc": "2.0",
+  "id": 5,
+  "method": "tools/call",
+  "params": {
+    "name": "get_country_info",
+    "arguments": {
+      "countryName": "A"
+    }
+  }
+}
+
+← Servidor
+{
+  "result": {
+    "content": [
+      {
+        "type": "text",
+        "text": "{\n  \"code\": \"INVALID_INPUT\",\n  \"message\": \"countryName debe tener al menos 2 caracteres.\"\n}"
+      }
+    ],
+    "isError": true
+  },
+  "jsonrpc": "2.0",
+  "id": 5
+}
+```
 
 <!-- evidencia-mcp:fin -->
 

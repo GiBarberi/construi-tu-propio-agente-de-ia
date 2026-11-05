@@ -9,7 +9,7 @@ Como las dos piezas viven en el mismo contenedor, no hace falta un túnel ni exp
 
 ## 1. URL pública
 
-**https://PENDIENTE.onrender.com**
+**https://country-agent-5c91.onrender.com**
 
 El plan gratuito de Render hiberna el servicio tras 15 minutos sin uso, y el primer pedido después de eso tarda unos 30 a 60 segundos en responder. Por eso la evidencia verificable está en las secciones siguientes, commiteada en este repositorio.
 
@@ -62,7 +62,7 @@ Generadas con `npm run transcripts -- <URL>`, que envía las preguntas al agente
 
 <!-- transcripciones:inicio -->
 
-_PENDIENTE: ejecutar `npm run transcripts -- https://PENDIENTE.onrender.com`._
+_PENDIENTE: ejecutar `npm run transcripts -- https://country-agent-5c91.onrender.com`._
 
 <!-- transcripciones:fin -->
 
